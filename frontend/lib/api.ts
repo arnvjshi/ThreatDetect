@@ -21,3 +21,8 @@ export async function fetchEvent(id: string): Promise<ThreatEvent | null> {
   }
   return response.json();
 }
+
+export async function deleteEvent(id: string): Promise<boolean> {
+  const response = await fetch(`${httpBase}/events/${id}`, { method: 'DELETE' });
+  return response.ok;
+}

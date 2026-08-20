@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import asyncio
 import socket
 import threading
@@ -354,13 +355,6 @@ class CameraPipeline:
             self.loop.call_soon_threadsafe(asyncio.create_task, self._finalize_event(completed_event))
 
     async def _finalize_event(self, active_event: ActiveEvent) -> None:
-        context = {
-            "threat_level": active_event.threat_level,
-            "anomaly_score": round(active_event.anomaly_score, 3),
-            "detected_objects": [detection.model_dump() for detection in active_event.detected_objects],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        summary = await self.llm_service.generate_summary(context)
         clip_path = await asyncio.to_thread(
             self.clip_service.save_clip,
             active_event.buffer_snapshot,
@@ -377,6 +371,17 @@ class CameraPipeline:
         thumbnail_name = Path(thumbnail_path).name if thumbnail_path else ""
         video_url = f"/clips/{clip_name}" if clip_name else ""
         thumbnail_url = f"/thumbnails/{thumbnail_name}" if thumbnail_name else ""
+        timestamp_ist = now_ist().isoformat()
+        context = {
+            "threat_level": active_event.threat_level,
+            "anomaly_score": round(active_event.anomaly_score, 3),
+            "detected_objects": [detection.model_dump() for detection in active_event.detected_objects],
+            "timestamp_ist": timestamp_ist,
+            "thumbnail_url": thumbnail_url,
+        }
+        thumbnail_bytes = Path(thumbnail_path).read_bytes() if thumbnail_path else None
+        summary = await self.llm_service.generate_summary(context, thumbnail_bytes)
+        thumbnail_base64 = base64.b64encode(thumbnail_bytes).decode("ascii") if thumbnail_bytes else ""
         event_data = EventCreate(
             video_url=video_url,
             thumbnail_url=thumbnail_url,
@@ -396,6 +401,8 @@ class CameraPipeline:
                 "threat_level": active_event.threat_level,
                 "summary": summary.summary,
                 "video_url": video_url,
+                "thumbnail_url": thumbnail_url,
+                "thumbnail_base64": thumbnail_base64,
                 "timestamp": now_ist().isoformat(),
                 "event_id": event_id,
                 "owner_email": self.owner_email,  # Pass email to notification service

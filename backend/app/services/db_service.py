@@ -38,6 +38,14 @@ class DBService:
         cursor = self.collection.find(query).sort("timestamp", -1).limit(limit)
         return [self._serialize(document) async for document in cursor]
 
+    async def delete_event(self, event_id: str) -> bool:
+        try:
+            object_id = ObjectId(event_id)
+        except Exception:
+            return False
+        result = await self.collection.delete_one({"_id": object_id})
+        return result.deleted_count > 0
+
     @staticmethod
     def _serialize(document: dict[str, Any] | None) -> dict[str, Any]:
         if not document:

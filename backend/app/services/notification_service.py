@@ -32,12 +32,21 @@ class NotificationService:
         if last_sent and now - last_sent < timedelta(seconds=settings.alert_cooldown_seconds):
             return False
 
+        def to_absolute_url(path: str) -> str:
+            if not path:
+                return ""
+            if path.startswith("http://") or path.startswith("https://"):
+                return path
+            return f"{settings.public_base_url.rstrip('/')}/{path.lstrip('/')}"
+
         payload = {
             "email": recipient,
-            "subject": "🚨 Threat Detected - " + event_data.get("threat_level", "High"),
+            "subject": "Threat Detected - " + event_data.get("threat_level", "High"),
             "summary": event_data.get("summary", "Suspicious activity detected"),
             "threat_level": event_data.get("threat_level", "High"),
-            "video_url": event_data.get("video_url", ""),
+            "video_url": to_absolute_url(event_data.get("video_url", "")),
+            "thumbnail_url": to_absolute_url(event_data.get("thumbnail_url", "")),
+            "thumbnail_base64": event_data.get("thumbnail_base64", ""),
             "timestamp": utc_now_iso_to_ist(event_data.get("timestamp")),
         }
         try:

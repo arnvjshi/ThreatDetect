@@ -103,6 +103,11 @@ class ClipService:
             return ""
 
         frame = frame_list[len(frame_list) // 2].frame
+        height, width = frame.shape[:2]
+        if width > 640:
+            scale = 640 / float(width)
+            resized_height = max(1, int(height * scale))
+            frame = cv2.resize(frame, (640, resized_height))
         thumbnail_path = self.thumbnail_dir / f"{event_id}.jpg"
         cv2.imwrite(str(thumbnail_path), frame)
         return str(thumbnail_path)

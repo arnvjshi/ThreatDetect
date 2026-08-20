@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlparse
 
 import cv2
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -12,6 +13,26 @@ router = APIRouter(prefix="/events", tags=["events"])
 NOT_FOUND_DETAIL = "Event not found"
 THUMBNAIL_NOT_AVAILABLE_DETAIL = "Thumbnail not available"
 THUMBNAIL_GENERATION_FAILED_DETAIL = "Failed to generate thumbnail"
+
+
+def _safe_unlink(target_path: Path, allowed_root: Path) -> None:
+    try:
+        resolved_target = target_path.resolve()
+        resolved_root = allowed_root.resolve()
+    except OSError:
+        return
+    if resolved_root in resolved_target.parents and resolved_target.is_file():
+        resolved_target.unlink(missing_ok=True)
+
+
+def _resolve_storage_file(path_value: str, base_dir: Path) -> Path | None:
+    if not path_value:
+        return None
+    parsed = urlparse(path_value)
+    path_name = Path(parsed.path if parsed.scheme or parsed.netloc else path_value).name
+    if not path_name:
+        return None
+    return base_dir / path_name
 
 
 def get_db_service(request: Request) -> DBService:
@@ -33,6 +54,34 @@ async def get_event(event_id: str, db_service: Annotated[DBService, Depends(get_
     if event is None:
         raise HTTPException(status_code=404, detail=NOT_FOUND_DETAIL)
     return event
+
+
+@router.delete("/{event_id}", responses={404: {"description": NOT_FOUND_DETAIL}})
+async def delete_event(event_id: str, db_service: Annotated[DBService, Depends(get_db_service)]):
+    event = await db_service.get_event(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail=NOT_FOUND_DETAIL)
+
+    deleted = await db_service.delete_event(event_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=NOT_FOUND_DETAIL)
+
+    settings = get_settings()
+    clip_root = Path(settings.clip_output_dir)
+    thumbnail_root = clip_root.parent / "thumbnails"
+
+    clip_path = _resolve_storage_file(event.get("clip_path", ""), clip_root)
+    if clip_path is None:
+        clip_path = _resolve_storage_file(event.get("video_url", ""), clip_root)
+
+    thumbnail_path = _resolve_storage_file(event.get("thumbnail_url", ""), thumbnail_root)
+
+    if clip_path is not None:
+        _safe_unlink(clip_path, clip_root)
+    if thumbnail_path is not None:
+        _safe_unlink(thumbnail_path, thumbnail_root)
+
+    return {"status": "deleted", "event_id": event_id}
 
 
 @router.get(

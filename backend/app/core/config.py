@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     cors_origins: str = "http://localhost:3000"
+    public_base_url: str = "http://localhost:8000"
 
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db: str = "threatdetect"
@@ -34,6 +35,7 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
+    ollama_timeout_seconds: float = 60.0
     gemini_api_key: str = ""
     gemini_model: str = "gemini-1.5-flash"
 
