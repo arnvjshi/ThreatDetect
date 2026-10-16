@@ -1,4 +1,6 @@
+import asyncio
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -23,12 +25,23 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger = logging.getLogger("app.main")
     db = await connect_mongo()
     db_service = DBService(db)
-    await db_service.ensure_indexes()
-
     user_service = UserService(db)
-    await user_service.ensure_indexes()
+
+    for attempt in range(1, 11):
+        try:
+            await db_service.ensure_indexes()
+            await user_service.ensure_indexes()
+            logger.info("MongoDB indexes verified successfully")
+            break
+        except Exception as exc:
+            if attempt == 10:
+                logger.warning("MongoDB indexes could not be created: %s", exc)
+            else:
+                logger.info("Waiting for MongoDB connection (attempt %d/10)...", attempt)
+                await asyncio.sleep(1)
 
     stream_hub = StreamHub()
     yolo_service = YOLOService()
@@ -62,6 +75,7 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

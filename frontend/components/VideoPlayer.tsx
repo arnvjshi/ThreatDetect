@@ -1,4 +1,4 @@
-const BACKEND_HTTP_URL = process.env.NEXT_PUBLIC_BACKEND_HTTP_URL || 'http://localhost:8000';
+import { getBackendHttpUrl } from '@/lib/api';
 
 function resolveVideoSrc(src: string): string {
   if (!src) {
@@ -7,8 +7,9 @@ function resolveVideoSrc(src: string): string {
   if (src.startsWith('http://') || src.startsWith('https://')) {
     return src;
   }
+  const backendUrl = getBackendHttpUrl();
   if (src.startsWith('/clips/')) {
-    return `${BACKEND_HTTP_URL}${src}`;
+    return `${backendUrl}${src}`;
   }
 
   // Handle legacy stored values like "storage\\clips\\<id>.mp4".
@@ -17,7 +18,7 @@ function resolveVideoSrc(src: string): string {
   if (!fileName) {
     return src;
   }
-  return `${BACKEND_HTTP_URL}/clips/${fileName}`;
+  return `${backendUrl}/clips/${fileName}`;
 }
 
 export function VideoPlayer({ src }: Readonly<{ src: string }>) {

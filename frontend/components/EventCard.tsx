@@ -3,11 +3,10 @@ import Link from 'next/link';
 import { ThreatEvent } from '../lib/types';
 import { formatToIst } from '../lib/time';
 import { ThreatBadge } from './ThreatBadge';
-
-const BACKEND_HTTP_URL = process.env.NEXT_PUBLIC_BACKEND_HTTP_URL || 'http://localhost:8000';
+import { getBackendHttpUrl } from '../lib/api';
 
 export function EventCard({ event }: Readonly<{ event: ThreatEvent }>) {
-  const thumbnailSrc = `${BACKEND_HTTP_URL}/events/${event._id}/thumbnail`;
+  const thumbnailSrc = `${getBackendHttpUrl()}/events/${event._id}/thumbnail`;
 
   return (
     <Link href={`/events/${event._id}`} className="glass-card subtle-ring block p-5 transition duration-200 hover:-translate-y-0.5 hover:border-accent/30">

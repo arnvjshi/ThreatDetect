@@ -4,8 +4,7 @@ import { useState } from 'react';
 import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
-
-const BACKEND_HTTP_URL = process.env.NEXT_PUBLIC_BACKEND_HTTP_URL || 'http://localhost:8000';
+import { getBackendHttpUrl } from '@/lib/api';
 
 interface RegistrationData {
   email: string;
@@ -35,7 +34,7 @@ export default function RegistrationForm(): Readonly<JSX.Element> {
     setError('');
 
     try {
-      const response = await fetch(`${BACKEND_HTTP_URL}/users/register`, {
+      const response = await fetch(`${getBackendHttpUrl()}/users/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

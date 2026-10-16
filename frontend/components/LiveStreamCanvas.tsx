@@ -4,14 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { StreamMessage } from '../lib/types';
 import { ThreatBadge } from './ThreatBadge';
-
-const wsBase = process.env.NEXT_PUBLIC_BACKEND_WS_URL ?? 'ws://localhost:8000';
+import { getBackendWsUrl } from '../lib/api';
 
 export function LiveStreamCanvas() {
   const [stream, setStream] = useState<StreamMessage | null>(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
+    const wsBase = getBackendWsUrl();
     const socket = new WebSocket(`${wsBase}/stream`);
     socket.onopen = () => setConnected(true);
     socket.onclose = () => setConnected(false);

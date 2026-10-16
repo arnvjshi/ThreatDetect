@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import type { JSX } from 'react';
 import clsx from 'clsx';
+import { getBackendHttpUrl } from '@/lib/api';
 
-const BACKEND_HTTP_URL = process.env.NEXT_PUBLIC_BACKEND_HTTP_URL || 'http://localhost:8000';
 const DEFAULT_CAMERA_SOURCE = process.env.NEXT_PUBLIC_DEFAULT_CAMERA_SOURCE || '0';
 const DEFAULT_ESP32_BASE_URL = process.env.NEXT_PUBLIC_DEFAULT_ESP32_BASE_URL || 'http://threatdetect-cam.local';
 
@@ -46,7 +46,7 @@ export function CameraControls(): Readonly<JSX.Element> {
     const flashUrl = cameraMode === 'esp32' ? `${esp32BaseUrl.replace(/\/$/, '')}/flash` : '';
 
     try {
-      const response = await fetch(`${BACKEND_HTTP_URL}/start`, {
+      const response = await fetch(`${getBackendHttpUrl()}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -80,7 +80,7 @@ export function CameraControls(): Readonly<JSX.Element> {
     setError('');
 
     try {
-      const response = await fetch(`${BACKEND_HTTP_URL}/stop`, {
+      const response = await fetch(`${getBackendHttpUrl()}/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

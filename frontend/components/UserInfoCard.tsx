@@ -6,8 +6,7 @@ import type { ReactElement } from 'react';
 import clsx from 'clsx';
 
 import { UserProfile } from '@/lib/types';
-
-const BACKEND_HTTP_URL = process.env.NEXT_PUBLIC_BACKEND_HTTP_URL || 'http://localhost:8000';
+import { getBackendHttpUrl } from '@/lib/api';
 
 export function UserInfoCard(): ReactElement {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -24,7 +23,7 @@ export function UserInfoCard(): ReactElement {
       }
 
       try {
-        const response = await fetch(`${BACKEND_HTTP_URL}/users/email/${encodeURIComponent(storedEmail)}`, {
+        const response = await fetch(`${getBackendHttpUrl()}/users/email/${encodeURIComponent(storedEmail)}`, {
           cache: 'no-store',
         });
         if (!response.ok) {
