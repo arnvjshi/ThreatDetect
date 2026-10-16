@@ -57,13 +57,22 @@ else
   log "Docker installed and enabled"
 fi
 
+safe_apt_update() {
+  if ! apt-get update; then
+    warn "apt-get update encountered corrupted lists. Cleaning cache and retrying..."
+    rm -rf /var/lib/apt/lists/*
+    apt-get clean
+    apt-get update
+  fi
+}
+
 # Ensure Docker Compose plugin is available
 if docker compose version &> /dev/null; then
   log "Docker Compose plugin available: $(docker compose version --short)"
 else
   info "Installing Docker Compose plugin..."
-  apt-get update
-  apt-get install -y docker-compose-plugin
+  safe_apt_update
+  apt-get install -y docker-compose-plugin || apt-get install -y docker-compose-v2 || apt-get install -y docker-compose
   log "Docker Compose plugin installed"
 fi
 
@@ -137,7 +146,7 @@ log "Systemd service created and enabled (auto-starts on boot)"
 # ── Step 6: Set up mDNS so the Pi is reachable as <hostname>.local ──────────
 if ! dpkg -l avahi-daemon &> /dev/null; then
   info "Installing Avahi (mDNS) for hostname.local resolution..."
-  apt-get update
+  safe_apt_update
   apt-get install -y avahi-daemon
   systemctl enable avahi-daemon
   systemctl start avahi-daemon
