@@ -1,0 +1,43 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# System dependencies for OpenCV (headless) + optional audio (portaudio)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
+      portaudio19-dev \
+      ffmpeg \
+      curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+
+# Replace opencv-python with headless variant for ARM64 (no GUI deps needed)
+RUN sed -i 's/^opencv-python==.*/opencv-python-headless/' requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY app ./app
+
+# Copy YOLO weights (will be downloaded at first run if missing)
+COPY yolov8n.pt ./yolov8n.pt
+
+# Download vosk small english model if not present
+RUN mkdir -p vosk-model-small-en-us && \
+    if [ ! -f vosk-model-small-en-us/conf/model.conf ]; then \
+      curl -sL https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip -o /tmp/vosk.zip && \
+      python3 -m zipfile -e /tmp/vosk.zip /tmp/vosk && \
+      cp -r /tmp/vosk/vosk-model-small-en-us-0.15/* vosk-model-small-en-us/ && \
+      rm -rf /tmp/vosk /tmp/vosk.zip; \
+    fi
+
+# Create storage directory
+RUN mkdir -p storage/clips storage/thumbnails
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -73,6 +73,14 @@ export default async function EventDetailPage({ params }: Readonly<{ params: Pro
               ))}
             </div>
           </div>
+          {eventData.audio_transcription && eventData.audio_transcription !== "None" && (
+            <div className="glass-card subtle-ring p-6">
+              <p className="metric-label">Threat Words Detected</p>
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/40 p-4 text-sm italic text-slate-300">
+                {eventData.audio_transcription}
+              </div>
+            </div>
+          )}
           <div className="glass-card subtle-ring p-6">
             <p className="metric-label">Suggested actions</p>
             <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/40">

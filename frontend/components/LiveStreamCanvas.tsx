@@ -54,12 +54,27 @@ export function LiveStreamCanvas() {
           <div className="flex aspect-video items-center justify-center text-sm text-slate-400">Waiting for stream</div>
         )}
       </div>
-      <div className="mt-4 grid gap-3 text-sm text-slate-300 sm:grid-cols-3">
+      <div className="mt-4 grid gap-3 text-sm text-slate-300 sm:grid-cols-4">
         <div className="rounded-xl border border-white/10 bg-white/5 p-3">
           <div className="metric-label">Anomaly</div>
           <div className="metric-value mt-1 text-xl">{stream?.anomaly_score?.toFixed(2) ?? '0.00'}</div>
         </div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="metric-label">Audio Level</div>
+          <div className="mt-2 h-4 w-full overflow-hidden rounded-full bg-black/40">
+            <div 
+              className="h-full bg-emerald-400 transition-all duration-100 ease-linear" 
+              style={{ width: `${Math.min(100, (stream?.audio_level ?? 0) / 100)}%` }} 
+            />
+          </div>
+        </div>
         <div className="rounded-xl border border-white/10 bg-white/5 p-3 sm:col-span-2">
+          <div className="metric-label">Live Transcript</div>
+          <div className="mt-1 max-h-16 overflow-y-auto text-xs italic text-slate-400">
+            {stream?.audio_transcription || "Listening..."}
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-3 sm:col-span-4">
           <div className="metric-label">Detected objects</div>
           <div className="mt-2 flex flex-wrap gap-2">
             {(stream?.detections ?? []).slice(0, 5).map((detection) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
 

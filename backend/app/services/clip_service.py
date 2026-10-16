@@ -33,6 +33,7 @@ class ClipService:
         post_event_frames: Iterable[FramePacket],
         event_id: str,
         fps: int,
+        audio_path: str = ""
     ) -> str:
         frames = [*buffered_frames, *post_event_frames]
         if not frames:
@@ -56,17 +57,17 @@ class ClipService:
             ffmpeg_path,
             "-y",
             "-i",
-            str(temp_path),
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            str(clip_path),
+            str(temp_path)
         ]
+        
+        if audio_path and Path(audio_path).exists() and Path(audio_path).stat().st_size > 44:
+            command.extend(["-i", str(audio_path)])
+            command.extend(["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"])
+            command.extend(["-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart"])
+        else:
+            command.extend(["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"])
+            
+        command.append(str(clip_path))
         completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
         if completed.returncode != 0 or not clip_path.exists():
             temp_path.replace(clip_path)

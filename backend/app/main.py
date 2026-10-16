@@ -16,6 +16,7 @@ from app.services.notification_service import NotificationService
 from app.services.user_service import UserService
 from app.services.video_stream import CameraPipeline, StreamHub
 from app.services.yolo_service import YOLOService
+from app.services.audio_service import AudioService
 
 settings = get_settings()
 
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
     clip_service = ClipService(settings.clip_output_dir, settings.pre_event_seconds, settings.post_event_seconds)
     llm_service = LLMService()
     notification_service = NotificationService()
+    audio_service = AudioService()
     pipeline = CameraPipeline(
         stream_hub,
         db_service,
@@ -43,6 +45,7 @@ async def lifespan(app: FastAPI):
         clip_service,
         llm_service,
         notification_service,
+        audio_service,
     )
 
     app.state.db = db

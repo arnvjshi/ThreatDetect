@@ -1,0 +1,153 @@
+# ==============================================================================
+# ThreatDetect — Raspberry Pi 5 (ARM64) Full Stack Docker Compose
+# ==============================================================================
+# Usage:
+#   docker compose -f docker-compose.pi.yml up -d --build
+#
+# This runs ALL services in containers on the Pi:
+#   - MongoDB          (port 27017)
+#   - MongoDB Express  (port 8081)
+#   - Backend (FastAPI) (port 8000)
+#   - Frontend (Next.js)(port 3000) — the main demo URL
+#   - Mailer Service    (port 5001)
+#
+# Access the demo at:  http://<pi-ip>:3000
+# ==============================================================================
+
+services:
+
+  # ─── MongoDB ───────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: threatdetect-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── MongoDB Admin UI (optional, access at :8081) ──────────────────────────
+  mongo-express:
+    image: mongo-express:latest
+    container_name: threatdetect-mongo-ui
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin123@mongo:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  # ─── Backend (FastAPI + YOLOv8 + ML Pipeline) ─────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.pi
+    container_name: threatdetect-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # ── App ──
+      APP_NAME: "ThreatDetect API"
+      APP_ENV: "production"
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      PUBLIC_BASE_URL: "http://${PI_IP:-localhost}:8000"
+      CORS_ORIGINS: "http://localhost:3000,http://frontend:3000,http://${PI_IP:-localhost}:3000,http://${PI_HOSTNAME:-raspberrypi}:3000,http://${PI_HOSTNAME:-raspberrypi}.local:3000"
+
+      # ── MongoDB (uses Docker network hostname) ──
+      MONGODB_URI: "mongodb://admin:admin123@mongo:27017/threatdetect?authSource=admin"
+      MONGODB_DB: "threatdetect"
+
+      # ── Video / ML ──
+      VIDEO_SOURCE: "0"
+      YOLO_MODEL_PATH: "yolov8n.pt"
+      YOLO_CONFIDENCE: "0.4"
+      ANOMALY_THRESHOLD: "0.45"
+      EVENT_THRESHOLD: "0.7"
+      ANOMALY_GROUP_WINDOW_SECONDS: "120"
+      PRE_EVENT_SECONDS: "30"
+      POST_EVENT_SECONDS: "30"
+      CLIP_OUTPUT_DIR: "/app/storage/clips"
+      FRAME_WIDTH: "640"
+      FRAME_HEIGHT: "480"
+      STREAM_TARGET_FPS: "8"
+      STREAM_JPEG_QUALITY: "65"
+      SNAPSHOT_REQUEST_TIMEOUT_SECONDS: "2.0"
+
+      # ── LLM (Free Router API — primary) ──
+      FREE_ROUTER_API_KEY: "${FREE_ROUTER_API_KEY:-}"
+      FREE_ROUTER_MODEL: "${FREE_ROUTER_MODEL:-dots-studio/dots-3-note-preview:free}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GEMINI_MODEL: "${GEMINI_MODEL:-gemini-3.8-flash}"
+      OLLAMA_BASE_URL: "http://localhost:11434"
+      OLLAMA_MODEL: "llama3.1:8b"
+      OLLAMA_TIMEOUT_SECONDS: "60"
+
+      # ── Mailer ──
+      MAILER_SERVICE_URL: "http://mailer:5001/send-alert"
+      ALERT_RECIPIENTS: "${ALERT_RECIPIENTS:-security@example.com}"
+      ALERT_COOLDOWN_SECONDS: "300"
+    volumes:
+      - backend_storage:/app/storage
+    depends_on:
+      mongo:
+        condition: service_healthy
+    # NOTE: The backend connects to the ESP32-CAM over the Pi's LAN,
+    # so it needs host networking only if using mDNS (esp32cam.local).
+    # By default we use bridge mode + the ESP32's IP address.
+    # Uncomment the line below + remove ports: if you need mDNS resolution:
+    # network_mode: host
+
+  # ─── Frontend (Next.js Dashboard — THE DEMO URL) ──────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_BACKEND_HTTP_URL: "http://${PI_IP:-localhost}:8000"
+        NEXT_PUBLIC_BACKEND_WS_URL: "ws://${PI_IP:-localhost}:8000"
+    container_name: threatdetect-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_BACKEND_HTTP_URL: "http://${PI_IP:-localhost}:8000"
+      NEXT_PUBLIC_BACKEND_WS_URL: "ws://${PI_IP:-localhost}:8000"
+    depends_on:
+      - backend
+
+  # ─── Mailer Service (Nodemailer) ───────────────────────────────────────────
+  mailer:
+    build:
+      context: ./mailer-service
+      dockerfile: Dockerfile
+    container_name: threatdetect-mailer
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      EMAIL_SERVICE: "${EMAIL_SERVICE:-gmail}"
+      EMAIL_USER: "${EMAIL_USER:-}"
+      EMAIL_PASSWORD: "${EMAIL_PASSWORD:-}"
+      EMAIL_HOST: "${EMAIL_HOST:-smtp.gmail.com}"
+      EMAIL_PORT: "${EMAIL_PORT:-587}"
+      EMAIL_USE_TLS: "True"
+      PORT: "5001"
+
+volumes:
+  mongo_data:
+  backend_storage:

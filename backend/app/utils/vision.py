@@ -22,6 +22,7 @@ class FramePacket:
     detections: list[BoundingBox]
     anomaly_score: float
     heatmap: np.ndarray | None = None
+    audio_context: dict | None = None
 
 
 def encode_frame_to_jpeg(frame: np.ndarray, quality: int = 75) -> str:

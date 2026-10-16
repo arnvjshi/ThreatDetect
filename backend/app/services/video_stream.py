@@ -26,6 +26,7 @@ from app.services.db_service import DBService
 from app.services.llm_service import LLMService
 from app.services.notification_service import NotificationService
 from app.services.yolo_service import YOLOService
+from app.services.audio_service import AudioService
 from app.utils.time import now_ist
 from app.utils.vision import FramePacket, draw_detections, encode_frame_to_jpeg
 
@@ -79,6 +80,7 @@ class CameraPipeline:
         clip_service: ClipService,
         llm_service: LLMService,
         notification_service: NotificationService,
+        audio_service: AudioService,
     ) -> None:
         self.settings = get_settings()
         self.hub = hub
@@ -88,6 +90,7 @@ class CameraPipeline:
         self.clip_service = clip_service
         self.llm_service = llm_service
         self.notification_service = notification_service
+        self.audio_service = audio_service
 
         self.loop: asyncio.AbstractEventLoop | None = None
         self.capture: cv2.VideoCapture | None = None
@@ -137,6 +140,7 @@ class CameraPipeline:
         self.status = PipelineStatus(running=True, source=self.source, message="streaming")
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
+        self.audio_service.start()
         await asyncio.sleep(0)
         return self.status
 
@@ -147,6 +151,7 @@ class CameraPipeline:
         if self.capture is not None:
             self.capture.release()
             self.capture = None
+        self.audio_service.stop()
         self.status = PipelineStatus(running=False, source=self.source, message="stopped")
         return self.status
 
@@ -227,18 +232,27 @@ class CameraPipeline:
             frame = cv2.resize(frame, (self.settings.frame_width, self.settings.frame_height))
             yolo_result = self.yolo_service.detect(frame)
             anomaly_result = self.anomaly_service.analyze(frame)
-            threat_level = self._compute_threat(yolo_result.detections, anomaly_result.score, yolo_result.suspicious)
-            annotated = draw_detections(frame, yolo_result.detections, anomaly_result.score, frame_timestamp)
+            audio_context = self.audio_service.get_current_audio_context()
+            audio_score = audio_context.get("audio_anomaly_score", 0.0)
+            
+            # Combine scores (max of visual anomaly or audio anomaly)
+            combined_score = max(anomaly_result.score, audio_score)
+            
+            threat_level = self._compute_threat(yolo_result.detections, combined_score, yolo_result.suspicious)
+            annotated = draw_detections(frame, yolo_result.detections, combined_score, frame_timestamp)
             packet = FramePacket(
                 frame=annotated,
                 timestamp=frame_timestamp,
                 detections=yolo_result.detections,
-                anomaly_score=anomaly_result.score,
+                anomaly_score=combined_score,
                 heatmap=anomaly_result.heatmap,
             )
+            # Add audio context to packet so we can use it in final summary
+            packet.audio_context = audio_context
+            
             self.buffer.append(packet)
             self._broadcast_frame(packet, threat_level)
-            self._maybe_trigger_flash(anomaly_result.score)
+            self._maybe_trigger_flash(combined_score)
             self._process_event(packet, threat_level, yolo_result.detections)
             self._throttle()
 
@@ -293,6 +307,8 @@ class CameraPipeline:
             "anomaly_score": packet.anomaly_score,
             "detections": [detection.model_dump() for detection in packet.detections],
             "frame": encode_frame_to_jpeg(packet.frame, quality=self.settings.stream_jpeg_quality),
+            "audio_transcription": packet.audio_context.get("transcription", "") if packet.audio_context else "",
+            "audio_level": packet.audio_context.get("audio_level", 0.0) if packet.audio_context else 0.0,
         }
         self.loop.call_soon_threadsafe(asyncio.create_task, self.hub.broadcast(payload))
 
@@ -355,13 +371,30 @@ class CameraPipeline:
             self.loop.call_soon_threadsafe(asyncio.create_task, self._finalize_event(completed_event))
 
     async def _finalize_event(self, active_event: ActiveEvent) -> None:
+        audio_path = ""
+        try:
+            import tempfile
+            from pathlib import Path
+            audio_temp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=self.settings.clip_output_dir)
+            audio_temp.close()
+            audio_path = audio_temp.name
+            await asyncio.to_thread(self.audio_service.save_audio_clip, audio_path)
+        except Exception:
+            pass
+
         clip_path = await asyncio.to_thread(
             self.clip_service.save_clip,
             active_event.buffer_snapshot,
             active_event.collected_frames,
             active_event.event_id,
             self.fps,
+            audio_path
         )
+        if audio_path:
+            try:
+                Path(audio_path).unlink(missing_ok=True)
+            except OSError:
+                pass
         thumbnail_path = await asyncio.to_thread(
             self.clip_service.save_thumbnail,
             [*active_event.buffer_snapshot, *active_event.collected_frames],
@@ -372,12 +405,24 @@ class CameraPipeline:
         video_url = f"/clips/{clip_name}" if clip_name else ""
         thumbnail_url = f"/thumbnails/{thumbnail_name}" if thumbnail_name else ""
         timestamp_ist = now_ist().isoformat()
+        # Aggregate audio context from collected frames
+        all_transcriptions = []
+        all_threat_words = set()
+        for f in active_event.collected_frames:
+            if hasattr(f, 'audio_context'):
+                if f.audio_context.get("transcription"):
+                    all_transcriptions.append(f.audio_context["transcription"])
+                if f.audio_context.get("threat_words_detected"):
+                    all_threat_words.update(f.audio_context["threat_words_detected"])
+                    
         context = {
             "threat_level": active_event.threat_level,
             "anomaly_score": round(active_event.anomaly_score, 3),
             "detected_objects": [detection.model_dump() for detection in active_event.detected_objects],
             "timestamp_ist": timestamp_ist,
             "thumbnail_url": thumbnail_url,
+            "audio_transcription": ", ".join(list(all_threat_words)) if all_threat_words else "",
+            "detected_threat_words": list(all_threat_words)
         }
         thumbnail_bytes = Path(thumbnail_path).read_bytes() if thumbnail_path else None
         summary = await self.llm_service.generate_summary(context, thumbnail_bytes)
@@ -393,6 +438,7 @@ class CameraPipeline:
             escalation_steps=summary.escalation_steps,
             clip_path=clip_path,
             source_id=self.source or "default",
+            audio_transcription=context["audio_transcription"],
             owner_email=self.owner_email,  # Include the user's email who started this camera
         )
         event_id = await self.db_service.insert_event(event_data)

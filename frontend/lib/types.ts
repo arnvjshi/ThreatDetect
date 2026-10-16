@@ -21,6 +21,8 @@ export interface ThreatEvent {
   escalation_steps: string;
   clip_path?: string;
   source_id?: string;
+  audio_transcription?: string;
+  owner_email?: string;
 }
 
 export interface UserProfile {
@@ -40,4 +42,6 @@ export interface StreamMessage {
   event_id?: string;
   summary?: string;
   video_url?: string;
+  audio_transcription?: string;
+  audio_level?: number;
 }

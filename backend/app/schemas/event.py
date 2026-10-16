@@ -29,6 +29,7 @@ class EventBase(BaseModel):
     escalation_steps: str = ""
     clip_path: str = ""
     source_id: str = "default"
+    audio_transcription: str = ""
     owner_email: str = ""  # Email of the registered user who owns this camera/event
 
 

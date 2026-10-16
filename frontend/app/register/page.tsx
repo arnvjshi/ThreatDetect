@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import type { JSX } from 'react';
 import RegistrationForm from '@/components/RegistrationForm';
 
 export const metadata: Metadata = {

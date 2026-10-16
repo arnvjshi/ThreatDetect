@@ -54,10 +54,12 @@ WebServer server(80);
 
 String wifiSsid;
 String wifiPassword;
-String deviceName = "esp32cam";
+String deviceName = "threatdetect-cam";
 bool cameraReady = false;
 String cameraError = "not_initialized";
 String cameraProfile = "none";
+bool mdnsReady = false;
+unsigned long lastMdnsAttempt = 0;
 
 struct CameraPins {
   int pin_pwdn;
@@ -152,12 +154,14 @@ String getHostBaseUrl() {
 }
 
 void startMdnsIfPossible() {
-  if (WiFi.status() != WL_CONNECTED) {
+  if (mdnsReady || WiFi.status() != WL_CONNECTED) {
     return;
   }
 
+  lastMdnsAttempt = millis();
   if (MDNS.begin(deviceName.c_str())) {
     MDNS.addService("http", "tcp", 80);
+    mdnsReady = true;
     Serial.print("mDNS started: ");
     Serial.print(deviceName);
     Serial.println(".local");
@@ -412,6 +416,7 @@ void setup() {
 
   loadWifiCredentials();
 
+  WiFi.setHostname(deviceName.c_str());
   startSetupAccessPoint();
 
   server.on("/", HTTP_GET, handleRoot);
@@ -440,5 +445,8 @@ void setup() {
 
 void loop() {
   server.handleClient();
+  if (WiFi.status() == WL_CONNECTED && !mdnsReady && millis() - lastMdnsAttempt >= 5000) {
+    startMdnsIfPossible();
+  }
   delay(2);
 }

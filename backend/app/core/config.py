@@ -37,7 +37,9 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.1"
     ollama_timeout_seconds: float = 60.0
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
+    free_router_api_key: str = ""
+    free_router_model: str = "google/gemini-3.8-pro-free"
 
     mailer_service_url: str = "http://localhost:5001/send-alert"
     alert_recipients: str = "security@example.com"

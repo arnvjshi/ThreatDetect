@@ -23,6 +23,11 @@ export function EventCard({ event }: Readonly<{ event: ThreatEvent }>) {
             </span>
           </div>
           <p className="mt-4 text-sm leading-6 text-slate-200">{event.summary}</p>
+          {event.audio_transcription && event.audio_transcription !== "None" && (
+            <div className="mt-3 text-xs italic text-slate-400">
+              <span className="font-semibold text-slate-300">Threat Words Detected:</span> "{event.audio_transcription}"
+            </div>
+          )}
         </div>
         <div className="text-right text-xs text-slate-400">
           <div>Anomaly</div>

@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+.git
+.gitignore
+.env
+.env.*
+*.md
+.vscode
+.idea
+.venv
+storage/clips/*
+storage/thumbnails/*

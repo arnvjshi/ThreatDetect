@@ -25,20 +25,75 @@ class LLMService:
 
     async def generate_summary(self, event_context: dict, thumbnail_bytes: bytes | None = None) -> SummaryPayload:
         self.logger.info("LLM summary generation started", extra={"threat_level": event_context.get("threat_level")})
-        ollama_response = await self._try_ollama(event_context)
-        if ollama_response:
-            self.logger.info("LLM summary generated via Ollama")
-            return ollama_response
-        self.logger.warning("Ollama summary failed; attempting Gemini")
+        
+        free_router_response = await self._try_free_router(event_context, thumbnail_bytes)
+        if free_router_response:
+            self.logger.info("LLM summary generated via Free Router")
+            return free_router_response
+        self.logger.warning("Free Router summary failed; attempting Gemini")
+
         gemini_response = await self._try_gemini(event_context, thumbnail_bytes)
         if gemini_response:
             self.logger.info("LLM summary generated via Gemini")
             return gemini_response
-        self.logger.error("LLM summary generation failed: both providers unavailable")
+        self.logger.warning("Gemini summary failed; attempting Ollama")
+
+        ollama_response = await self._try_ollama(event_context)
+        if ollama_response:
+            self.logger.info("LLM summary generated via Ollama")
+            return ollama_response
+
+        self.logger.error("LLM summary generation failed: all providers unavailable")
         return SummaryPayload(
             summary="Suspicious activity detected with no LLM fallback available.",
             escalation_steps="Review the clip, validate the detection, and notify security.",
         )
+
+    async def _try_free_router(self, event_context: dict, thumbnail_bytes: bytes | None = None) -> SummaryPayload | None:
+        if not self.settings.free_router_api_key:
+            self.logger.warning("Free Router API key missing; skipping Free Router")
+            return None
+        
+        prompt = self._prompt(event_context)
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.settings.free_router_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        if thumbnail_bytes:
+            import base64
+            base64_image = base64.b64encode(thumbnail_bytes).decode('utf-8')
+            content = [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                }
+            ]
+        else:
+            content = prompt
+            
+        payload = {
+            "model": self.settings.free_router_model,
+            "messages": [{"role": "user", "content": content}]
+        }
+        
+        try:
+            timeout = httpx.Timeout(30.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                text = data["choices"][0]["message"]["content"].strip()
+                if not text:
+                    return None
+                return self._parse_response(text)
+        except Exception as exc:
+            self.logger.exception("Free Router summary failed", extra={"error": str(exc)})
+            return None
 
     async def _try_ollama(self, event_context: dict) -> SummaryPayload | None:
         prompt = self._prompt(event_context)
