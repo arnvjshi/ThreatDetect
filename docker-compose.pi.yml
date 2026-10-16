@@ -76,11 +76,11 @@ services:
       VIDEO_SOURCE: "0"
       YOLO_MODEL_PATH: "yolov8n.pt"
       YOLO_CONFIDENCE: "0.4"
-      ANOMALY_THRESHOLD: "0.45"
-      EVENT_THRESHOLD: "0.7"
-      ANOMALY_GROUP_WINDOW_SECONDS: "120"
-      PRE_EVENT_SECONDS: "30"
-      POST_EVENT_SECONDS: "30"
+      ANOMALY_THRESHOLD: "0.20"
+      EVENT_THRESHOLD: "0.35"
+      ANOMALY_GROUP_WINDOW_SECONDS: "30"
+      PRE_EVENT_SECONDS: "5"
+      POST_EVENT_SECONDS: "6"
       CLIP_OUTPUT_DIR: "/app/storage/clips"
       FRAME_WIDTH: "640"
       FRAME_HEIGHT: "480"
@@ -99,8 +99,9 @@ services:
 
       # ── Mailer ──
       MAILER_SERVICE_URL: "http://mailer:5001/send-alert"
-      ALERT_RECIPIENTS: "${ALERT_RECIPIENTS:-security@example.com}"
-      ALERT_COOLDOWN_SECONDS: "300"
+      ALERT_RECIPIENTS: "${ALERT_RECIPIENTS:-${EMAIL_USER:-security@example.com}}"
+      EMAIL_USER: "${EMAIL_USER:-}"
+      ALERT_COOLDOWN_SECONDS: "30"
     volumes:
       - backend_storage:/app/storage
     depends_on:

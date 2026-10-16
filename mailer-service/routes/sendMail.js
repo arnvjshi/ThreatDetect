@@ -73,8 +73,10 @@ router.post('/send-alert', async (req, res) => {
     };
 
     const info = await transporter.sendMail(message);
+    console.log(`[Mailer] Alert email sent successfully to ${email} (messageId: ${info.messageId})`);
     return res.status(200).json({ message: 'Alert sent', messageId: info.messageId });
   } catch (error) {
+    console.error(`[Mailer] Failed to send alert email to ${email}:`, error.message);
     return res.status(500).json({ message: 'Failed to send alert', error: error.message });
   }
 });

@@ -46,6 +46,6 @@ class YOLOService:
                 x1, y1, x2, y2 = map(float, box.xyxy[0].tolist())
                 detection = BoundingBox(label=label, confidence=confidence, x1=x1, y1=y1, x2=x2, y2=y2)
                 detections.append(detection)
-                if label.lower() in {"knife", "gun", "weapon", "pistol", "rifle"}:
+                if label.lower() in {"knife", "scissors", "baseball bat", "gun", "weapon", "pistol", "rifle"}:
                     suspicious = True
         return YoloResult(detections=detections, suspicious=suspicious)

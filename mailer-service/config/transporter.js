@@ -10,8 +10,8 @@ function createTransporter() {
     port: smtpPort,
     secure: secure,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
+      user: (process.env.EMAIL_USER || '').trim(),
+      pass: (process.env.EMAIL_PASSWORD || '').replace(/\s+/g, ''),
     },
   });
 

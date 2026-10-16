@@ -152,6 +152,16 @@ class CameraPipeline:
             self.capture.release()
             self.capture = None
         self.audio_service.stop()
+
+        # If an event was recording when camera stopped, finalize and persist it
+        if self._active_event is not None and len(self._active_event.collected_frames) > 0:
+            completed_event = self._active_event
+            self._active_event = None
+            try:
+                await self._finalize_event(completed_event)
+            except Exception as exc:
+                logging.getLogger("app.pipeline").warning("Failed to finalize in-flight event on stop: %s", exc)
+
         self.status = PipelineStatus(running=False, source=self.source, message="stopped")
         return self.status
 
@@ -289,7 +299,10 @@ class CameraPipeline:
             return False, None
 
     def _compute_threat(self, detections: list[BoundingBox], anomaly_score: float, suspicious: bool) -> str:
-        weapon_hit = any(detection.label.lower() in {"weapon", "gun", "knife", "rifle", "pistol"} for detection in detections)
+        weapon_hit = any(
+            detection.label.lower() in {"weapon", "gun", "knife", "scissors", "baseball bat", "rifle", "pistol"}
+            for detection in detections
+        )
         score = max(anomaly_score, 1.0 if suspicious or weapon_hit else 0.0)
         if weapon_hit or score >= self.settings.event_threshold:
             return "High"
@@ -340,10 +353,14 @@ class CameraPipeline:
         if self.loop is None:
             return
 
-        should_trigger = threat_level in {"Medium", "High"} and (
-            packet.anomaly_score >= self.settings.event_threshold or any(
-                detection.label.lower() in {"weapon", "gun", "knife", "rifle", "pistol"} for detection in detections
-            )
+        weapon_hit = any(
+            detection.label.lower() in {"weapon", "gun", "knife", "scissors", "baseball bat", "rifle", "pistol"}
+            for detection in detections
+        )
+        should_trigger = (
+            weapon_hit
+            or threat_level in {"Medium", "High"}
+            or packet.anomaly_score >= self.settings.anomaly_threshold
         )
 
         if should_trigger and self._active_event is None:

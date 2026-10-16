@@ -21,11 +21,11 @@ class Settings(BaseSettings):
     video_source: str = "0"
     yolo_model_path: str = "yolov8n.pt"
     yolo_confidence: float = 0.4
-    anomaly_threshold: float = 0.45
-    event_threshold: float = 0.7
-    anomaly_group_window_seconds: int = 120
-    pre_event_seconds: int = 30
-    post_event_seconds: int = 30
+    anomaly_threshold: float = 0.20
+    event_threshold: float = 0.35
+    anomaly_group_window_seconds: int = 30
+    pre_event_seconds: int = 5
+    post_event_seconds: int = 6
     clip_output_dir: str = "./storage/clips"
     frame_width: int = 1280
     frame_height: int = 720
@@ -43,7 +43,8 @@ class Settings(BaseSettings):
 
     mailer_service_url: str = "http://localhost:5001/send-alert"
     alert_recipients: str = "security@example.com"
-    alert_cooldown_seconds: int = 300
+    email_user: str = ""
+    alert_cooldown_seconds: int = 30
 
     @property
     def cors_origin_list(self) -> List[str]:
